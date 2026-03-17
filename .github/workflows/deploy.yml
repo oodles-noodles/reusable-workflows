@@ -83,8 +83,17 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
+          # github.workflow_ref format: "owner/repo/.github/workflows/file.yml@refs/..."
+          # When running as a reusable workflow, this points at THIS repo (the reusable-workflows repo),
+          # not the caller's repo. Attestations were created by a workflow in this same repo
+          # (build-and-push.yml), so the certificate SAN will be in this repo — not the caller's repo.
+          # We derive the cert-identity-regex from the reusable workflow repo to match any workflow
+          # in this repo, avoiding a hard-coded filename that would break on renames.
+          WORKFLOW_REPO=$(echo "${{ github.workflow_ref }}" | cut -d'/' -f1-2)
+          CERT_IDENTITY_REGEX="^https://github\.com/${WORKFLOW_REPO}/\.github/workflows/"
           gh attestation verify "oci://${{ steps.image.outputs.ref }}" \
-            --repo "${{ github.repository }}"
+            --repo "${{ github.repository }}" \
+            --cert-identity-regex "${CERT_IDENTITY_REGEX}"
 
       - name: Set up Helm
         uses: azure/setup-helm@v4
